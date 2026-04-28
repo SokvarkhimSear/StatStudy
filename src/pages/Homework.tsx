@@ -5,6 +5,7 @@ import { useAuth } from '../lib/AuthContext';
 import ChapterLayout from '../components/ChapterLayout';
 import { Clock, Plus, List, CheckCircle, PenTool, Eye, LayoutGrid, Trash2, Calendar as CalendarIcon } from 'lucide-react';
 import { motion } from 'motion/react';
+import { QUESTION_BANK } from '../data/questionBank';
 
 interface Homework {
   id: string;
@@ -44,7 +45,8 @@ export default function Homework() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
-  const [newPoints, setNewPoints] = useState(10);
+  const [newPoints, setNewPoints] = useState(100);
+  const [useQuestionBank, setUseQuestionBank] = useState(true);
 
   useEffect(() => {
     if (profile === undefined) return;
@@ -94,12 +96,12 @@ export default function Homework() {
       let homeworkData: any = {
         title: newTitle,
         dueDate: Timestamp.fromDate(new Date(newDueDate)),
-        totalPoints: newPoints,
+        totalPoints: useQuestionBank ? QUESTION_BANK.reduce((sum, q) => sum + q.points, 0) : newPoints,
         teacherId: user.uid,
         isReleased: false,
         isPublished: false,
         type: 'quiz',
-        questions: [],
+        questions: useQuestionBank ? QUESTION_BANK : [],
         createdAt: serverTimestamp(),
       };
 
@@ -320,6 +322,18 @@ export default function Homework() {
                     required
                   />
                 </div>
+              </div>
+              <div className="flex items-center gap-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                <input 
+                  type="checkbox" 
+                  id="useQuestionBank" 
+                  checked={useQuestionBank}
+                  onChange={(e) => setUseQuestionBank(e.target.checked)}
+                  className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <label htmlFor="useQuestionBank" className="text-sm font-semibold text-slate-700">
+                  Populate with 20 Statistics Questions from Question Bank
+                </label>
               </div>
               <div className="flex gap-3 pt-4">
                 <button 
