@@ -2,20 +2,22 @@ import { useState } from 'react';
 import { auth, db } from '../lib/firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { GraduationCap, KeyRound } from 'lucide-react';
+import { GraduationCap, KeyRound, User } from 'lucide-react';
 
 export default function AuthPage() {
+  const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleCodeAuth = async (e: any) => {
     e.preventDefault();
-    if (!code.trim()) return;
+    if (!code.trim() || !name.trim()) return;
     
     const formattedCode = code.trim().toLowerCase();
-    const email = `${formattedCode}@camtutor.app`;
-    const password = `camtutor-${formattedCode}`;
+    const formattedName = name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const email = `${formattedName}_${formattedCode}@camtutor.app`;
+    const password = `camtutor-${formattedCode}-${formattedName}`;
 
     setLoading(true);
     setError('');
@@ -42,7 +44,7 @@ export default function AuthPage() {
           await setDoc(doc(db, 'users', userCred.user.uid), {
             code: formattedCode,
             role: 'student', // Default role is student unless teacher changes it directly in Firebase
-            displayName: formattedCode.toUpperCase(),
+            displayName: name.trim(),
             createdAt: new Date().toISOString()
           });
 
@@ -67,11 +69,23 @@ export default function AuthPage() {
             <GraduationCap size={32} />
           </div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">CAMTutor</h1>
-          <p className="text-slate-500 mt-2">Enter your class code to continue.</p>
+          <p className="text-slate-500 mt-2">Enter your name and class code to continue.</p>
         </div>
 
         <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden p-8">
           <form onSubmit={handleCodeAuth} className="space-y-4">
+            <div className="relative">
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                type="text" 
+                placeholder="Your Full Name" 
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-4 ring-blue-50 focus:border-blue-300 transition-all font-medium text-lg text-slate-900"
+                required
+              />
+            </div>
+            
             <div className="relative">
               <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
@@ -88,7 +102,7 @@ export default function AuthPage() {
 
             <button 
               type="submit" 
-              disabled={loading || !code.trim()}
+              disabled={loading || !code.trim() || !name.trim()}
               className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50"
             >
               {loading ? 'Verifying...' : 'Enter Course'}

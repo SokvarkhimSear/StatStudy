@@ -96,7 +96,7 @@ export default function Homework() {
       let homeworkData: any = {
         title: newTitle,
         dueDate: Timestamp.fromDate(new Date(newDueDate)),
-        totalPoints: useQuestionBank ? QUESTION_BANK.reduce((sum, q) => sum + q.points, 0) : newPoints,
+        totalPoints: useQuestionBank ? QUESTION_BANK.length : homeworks.length ? 0 : 0,
         teacherId: user.uid,
         isReleased: false,
         isPublished: false,
@@ -211,7 +211,7 @@ export default function Homework() {
                        </div>
                      ) : studentSubmission && (
                        <span className={`text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded ${hw.isReleased ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                         {hw.isReleased ? `Score: ${studentSubmission.score}/${hw.totalPoints}` : 'Submitted'}
+                         {hw.isReleased ? `Score: ${studentSubmission.score}/${hw.questions?.length || 0}` : 'Submitted'}
                        </span>
                      )}
                   </div>
@@ -382,7 +382,7 @@ function TakeHomework({ homework, onCancel }: { homework: Homework, onCancel: ()
         let score = 0;
         homework.questions.forEach((q, idx) => {
           if (newAnswers[idx] === q.correctAnswer) {
-            score += q.points;
+            score += 1;
           }
         });
 
