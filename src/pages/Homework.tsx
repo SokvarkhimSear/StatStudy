@@ -3,9 +3,8 @@ import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, query, orderBy, where, onSnapshot, addDoc, serverTimestamp, Timestamp, updateDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '../lib/AuthContext';
 import ChapterLayout from '../components/ChapterLayout';
-import { Clock, Plus, List, CheckCircle, PenTool, Eye, LayoutGrid, Trash2, Sparkles, Wand2, Calendar as CalendarIcon } from 'lucide-react';
+import { Clock, Plus, List, CheckCircle, PenTool, Eye, LayoutGrid, Trash2, Calendar as CalendarIcon } from 'lucide-react';
 import { motion } from 'motion/react';
-import { generateHomeworkWithAI } from '../services/geminiService';
 
 interface Homework {
   id: string;
@@ -43,8 +42,6 @@ export default function Homework() {
   const [activeHomework, setActiveHomework] = useState<Homework | null>(null);
   const [submissions, setSubmissions] = useState<Record<string, Submission>>({});
   const [showAddModal, setShowAddModal] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
   const [newPoints, setNewPoints] = useState(10);
@@ -89,42 +86,6 @@ export default function Homework() {
     return () => unsubscribers.forEach(u => u());
   }, [user, isTeacher, isPreviewMode, homeworks.length]);
 
-  const generateAIHomework = async () => {
-    if (!user) return;
-    const items = [
-      {
-        title: "Population & Sampling Basics",
-        description: "Testing your knowledge on the fundamental concepts of populations.",
-        type: "quiz",
-        totalPoints: 20,
-        questions: [
-          { question: "What is a 'population' in statistics?", options: ["The entire group being studied", "A small subset of people", "The result of a calculation", "A type of graph"], correctAnswer: 0, points: 10 },
-          { question: "Which sampling method gives everyone an equal chance of being selected?", options: ["Convenience", "Simple Random", "Quota", "Snowball"], correctAnswer: 1, points: 10 }
-        ]
-      },
-      {
-        title: "Population Density Calculation",
-        description: "Using formulas to calculate values.",
-        type: "formula",
-        totalPoints: 10,
-        questions: [
-          { question: "If a population of 5000 resides in a 100 sq km area, what is the density (people/sq km)?", options: ["5", "50", "500", "5000"], correctAnswer: 1, points: 10 }
-        ]
-      }
-    ];
-
-    for (const item of items) {
-      await addDoc(collection(db, 'homeworks'), {
-        ...item,
-        teacherId: user.uid,
-        dueDate: Timestamp.fromDate(new Date(Date.now() + 86400000 * 7)),
-        isPublished: true,
-        isReleased: false,
-        createdAt: serverTimestamp()
-      });
-    }
-  };
-
   const addHomework = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle || !newDueDate || !user) return;
@@ -142,33 +103,9 @@ export default function Homework() {
         createdAt: serverTimestamp(),
       };
 
-      if (aiPrompt.trim()) {
-        setIsGenerating(true);
-        try {
-          const aiGenerated = await generateHomeworkWithAI(aiPrompt);
-          homeworkData = {
-            ...homeworkData,
-            ...aiGenerated,
-            // Re-ensure these are set correctly
-            teacherId: user.uid,
-            dueDate: Timestamp.fromDate(new Date(newDueDate)),
-            createdAt: serverTimestamp(),
-            isReleased: false,
-            isPublished: true, // Auto-publish if AI generated for convenience, or keep draft? Let's keep draft for review.
-          };
-        } catch (err) {
-          console.error(err);
-          // Fallback or alert? Let's just proceed with manual if it fails or alert user.
-          alert("AI Generation failed. Creating a manual draft instead.");
-        } finally {
-          setIsGenerating(false);
-        }
-      }
-
       await addDoc(collection(db, 'homeworks'), homeworkData);
       setNewTitle('');
       setNewDueDate('');
-      setAiPrompt('');
       setShowAddModal(false);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'homeworks');
@@ -350,23 +287,7 @@ export default function Homework() {
               New Assignment
             </h2>
             <form onSubmit={addHomework} className="space-y-6">
-              <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 mb-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles size={16} className="text-blue-600" />
-                  <label className="text-xs font-black uppercase tracking-widest text-blue-700">AI Assignment Request (Optional)</label>
-                </div>
-                <textarea 
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  placeholder="e.g., 'Make a quiz about population vs sample with 5 questions'"
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-blue-200 bg-white focus:ring-2 ring-blue-500/20 outline-none transition-all h-20 resize-none"
-                />
-                <p className="text-[10px] text-blue-500 mt-1 italic">
-                  * If provided, Gemini will generate questions automatically based on your prompt.
-                </p>
-              </div>
-
-              <div>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-2">
                 <label className="block text-sm font-bold text-slate-700 mb-2">Assignment Title</label>
                 <input 
                   autoFocus
@@ -410,15 +331,9 @@ export default function Homework() {
                 </button>
                 <button 
                   type="submit"
-                  disabled={isGenerating}
-                  className="flex-1 px-4 py-3 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-3 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
                 >
-                  {isGenerating ? (
-                    <>
-                      <Wand2 className="animate-spin" size={18} />
-                      AI Generating...
-                    </>
-                  ) : 'Create Assignment'}
+                  Create Assignment
                 </button>
               </div>
             </form>
