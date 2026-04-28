@@ -1,0 +1,91 @@
+{
+  "entities": {
+    "user": {
+      "title": "User Profile",
+      "description": "User account details and roles.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "teacher"] },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" }
+      },
+      "required": ["email", "role"]
+    },
+    "quizResult": {
+      "title": "Quiz Result",
+      "description": "A student's score on a practice quiz topic.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "topicId": { "type": "string" },
+        "score": { "type": "number" },
+        "totalQuestions": { "type": "number" },
+        "completedAt": { "type": "string" }
+      },
+      "required": ["userId", "topicId", "score", "totalQuestions", "completedAt"]
+    },
+    "homework": {
+      "title": "Homework",
+      "description": "An assignment for students.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string", "enum": ["quiz", "formula"] },
+        "questions": { 
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "question": { "type": "string" },
+              "options": { "type": "array", "items": { "type": "string" } },
+              "correctAnswer": { "type": "number" },
+              "points": { "type": "number" }
+            }
+          }
+        },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "totalPoints": { "type": "number" },
+        "teacherId": { "type": "string" },
+        "isReleased": { "type": "boolean" },
+        "isPublished": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "dueDate", "totalPoints", "teacherId", "isReleased", "isPublished", "createdAt"]
+    },
+    "submission": {
+      "title": "Assignment Submission",
+      "description": "A student's work for a specific homework.",
+      "type": "object",
+      "properties": {
+        "homeworkId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "answers": { "type": "array", "items": { "type": "number" } },
+        "score": { "type": "number" },
+        "submittedAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["submitted", "graded"] }
+      },
+      "required": ["homeworkId", "studentId", "score", "submittedAt", "status"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/user" },
+      "description": "Global user profiles."
+    },
+    "homeworks/{homeworkId}": {
+      "schema": { "$ref": "#/entities/homework" },
+      "description": "Assignments created by teachers."
+    },
+    "homeworks/{homeworkId}/submissions/{submissionId}": {
+      "schema": { "$ref": "#/entities/submission" },
+      "description": "Student submissions for a specific homework."
+    },
+    "users/{userId}/quizResults/{resultId}": {
+      "schema": { "$ref": "#/entities/quizResult" },
+      "description": "Personal quiz history."
+    }
+  }
+}

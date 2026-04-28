@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "CAMTutor",
+  "description": "An interactive statistics learning platform for standard populations and sampling, featuring AI-powered homework generation and real-time progress tracking.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }
