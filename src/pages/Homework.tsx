@@ -47,6 +47,7 @@ export default function Homework() {
   const [newDueDate, setNewDueDate] = useState('');
   const [newPoints, setNewPoints] = useState(100);
   const [useQuestionBank, setUseQuestionBank] = useState(true);
+  const [viewingSubmissionsHw, setViewingSubmissionsHw] = useState<Homework | null>(null);
 
   useEffect(() => {
     if (profile === undefined) return;
@@ -239,6 +240,13 @@ export default function Homework() {
                   {(isTeacher && !isPreviewMode) ? (
                     <div className="flex gap-2">
                       <button 
+                        onClick={() => setViewingSubmissionsHw(hw)}
+                        className="p-2 rounded-lg border bg-blue-50 text-blue-600 border-blue-200 hover:border-blue-400 hover:text-blue-700 transition-all font-semibold flex items-center justify-center min-w-[100px]"
+                      >
+                        <List size={16} className="mr-1" />
+                        Scores
+                      </button>
+                      <button 
                         onClick={() => togglePublish(hw.id, hw.isPublished)}
                         className={`p-2 rounded-lg border transition-all ${hw.isPublished ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-400 border-slate-200 hover:border-blue-400 hover:text-blue-600'}`}
                         title={hw.isPublished ? "Set to Draft" : "Publish Assignment"}
@@ -354,7 +362,73 @@ export default function Homework() {
           </div>
         </div>
       )}
+
+       {viewingSubmissionsHw && (
+         <ViewSubmissionsModal homework={viewingSubmissionsHw} onClose={() => setViewingSubmissionsHw(null)} />
+       )}
     </ChapterLayout>
+  );
+}
+
+function ViewSubmissionsModal({ homework, onClose }: { homework: Homework, onClose: () => void }) {
+  const [hwSubmissions, setHwSubmissions] = useState<Submission[]>([]);
+
+  useEffect(() => {
+    const q = collection(db, `homeworks/${homework.id}/submissions`);
+    const unsub = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => doc.data() as Submission);
+      setHwSubmissions(docs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `homeworks/${homework.id}/submissions`);
+    });
+    return () => unsub();
+  }, [homework.id]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl p-8 max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200">
+        <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
+          <List className="text-blue-600" />
+          Scores: {homework.title}
+        </h2>
+        <p className="text-slate-500 mb-6 text-sm">Total possible points: {homework.questions?.length || 0}</p>
+        
+        <div className="flex-1 overflow-y-auto space-y-3 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+          {hwSubmissions.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-slate-400 font-medium">No submissions yet.</p>
+            </div>
+          ) : (
+            hwSubmissions.map((sub, idx) => (
+              <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 flex justify-between items-center shadow-sm">
+                <div>
+                  <h4 className="font-bold text-slate-800">{sub.studentName || 'Unknown Student'}</h4>
+                  <p className="text-xs text-slate-500 mt-1 font-mono">{sub.submittedAt ? sub.submittedAt.toDate().toLocaleString('en-US', { timeZone: 'Asia/Phnom_Penh' }) : ''} (ICT)</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-sm font-black text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
+                    {sub.score} / {homework.questions?.length || 0}
+                  </div>
+                  <div className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1.5 rounded-lg border border-emerald-100">
+                    {Math.round((sub.score / (homework.questions?.length || 1)) * 100)}%
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        
+        <div className="flex justify-end pt-4 border-t border-slate-100">
+          <button 
+            type="button" 
+            onClick={onClose}
+            className="px-6 py-2.5 rounded-xl font-bold bg-slate-900 text-white hover:bg-slate-800 transition-all active:scale-95 shadow-md"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
