@@ -462,7 +462,7 @@ function TakeHomework({ homework, onCancel }: { homework: Homework, onCancel: ()
 
         await setDoc(doc(db, `homeworks/${homework.id}/submissions/${user?.uid}`), {
           studentId: user?.uid,
-          studentName: profile?.displayName || user?.email,
+          studentName: profile?.displayName || user?.email || 'Unknown Student',
           answers: newAnswers,
           score,
           status: 'submitted',

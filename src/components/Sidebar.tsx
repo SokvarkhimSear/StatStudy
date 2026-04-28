@@ -115,7 +115,7 @@ export default function Sidebar({ currentView, setCurrentView }: SidebarProps) {
                   {profile?.role === 'teacher' ? <School size={16} /> : <GraduationCap size={16} />}
                 </div>
                 <div className="truncate flex-1">
-                  <p className="font-bold text-white leading-none mb-1 truncate">{user.displayName || user.email}</p>
+                  <p className="font-bold text-white leading-none mb-1 truncate">{profile?.displayName || user.email}</p>
                   <p className="text-[10px] uppercase font-black tracking-widest text-slate-500">{profile?.role || 'user'}</p>
                 </div>
              </div>
