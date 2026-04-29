@@ -6,6 +6,7 @@ import ChapterLayout from '../components/ChapterLayout';
 import { Clock, Plus, List, CheckCircle, PenTool, Eye, LayoutGrid, Trash2, Calendar as CalendarIcon } from 'lucide-react';
 import { motion } from 'motion/react';
 import { QUESTION_BANK } from '../data/questionBank';
+import { INFERENCE_QUESTIONS } from '../data/inferenceQuestions';
 
 interface Homework {
   id: string;
@@ -19,8 +20,9 @@ interface Homework {
   type: 'quiz' | 'formula';
   questions: {
     question: string;
-    options: string[];
-    correctAnswer: number;
+    type?: 'multiple-choice' | 'short-answer';
+    options?: string[];
+    correctAnswer: number | string;
     points: number;
   }[];
 }
@@ -32,6 +34,7 @@ interface Submission {
   score: number;
   status: 'submitted' | 'graded';
   submittedAt: Timestamp;
+  answers?: (number | string)[];
 }
 
 export default function Homework() {
@@ -46,8 +49,9 @@ export default function Homework() {
   const [newTitle, setNewTitle] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
   const [newPoints, setNewPoints] = useState(100);
-  const [useQuestionBank, setUseQuestionBank] = useState(true);
+  const [questionSet, setQuestionSet] = useState('statistics'); // 'statistics' | 'inference' | 'none'
   const [viewingSubmissionsHw, setViewingSubmissionsHw] = useState<Homework | null>(null);
+  const [editingHomework, setEditingHomework] = useState<Homework | null>(null);
 
   useEffect(() => {
     if (profile === undefined) return;
@@ -94,15 +98,19 @@ export default function Homework() {
     if (!newTitle || !newDueDate || !user) return;
 
     try {
+      let selectedQuestions: any[] = [];
+      if (questionSet === 'statistics') selectedQuestions = QUESTION_BANK;
+      else if (questionSet === 'inference') selectedQuestions = INFERENCE_QUESTIONS;
+
       let homeworkData: any = {
         title: newTitle,
         dueDate: Timestamp.fromDate(new Date(newDueDate)),
-        totalPoints: useQuestionBank ? QUESTION_BANK.length : homeworks.length ? 0 : 0,
+        totalPoints: selectedQuestions.length > 0 ? selectedQuestions.length : 0,
         teacherId: user.uid,
         isReleased: false,
         isPublished: false,
         type: 'quiz',
-        questions: useQuestionBank ? QUESTION_BANK : [],
+        questions: selectedQuestions,
         createdAt: serverTimestamp(),
       };
 
@@ -151,6 +159,10 @@ export default function Homework() {
 
   if (activeHomework) {
     return <TakeHomework homework={activeHomework} onCancel={() => setActiveHomework(null)} />;
+  }
+
+  if (editingHomework) {
+    return <EditHomework homework={editingHomework} onCancel={() => setEditingHomework(null)} />;
   }
 
   const visibleHomeworks = (isTeacher && !isPreviewMode) 
@@ -261,6 +273,13 @@ export default function Homework() {
                         {hw.isReleased ? <CheckCircle size={20} /> : <Eye size={20} />}
                       </button>
                       <button 
+                        onClick={() => setEditingHomework(hw)}
+                        className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:border-blue-400 hover:text-blue-600 transition-all bg-white"
+                        title="Edit Assignment"
+                      >
+                        <PenTool size={20} />
+                      </button>
+                      <button 
                         onClick={() => deleteHomework(hw.id)}
                         className="p-2 rounded-lg border border-slate-200 text-slate-400 hover:border-rose-400 hover:text-rose-600 transition-all bg-white"
                         title="Delete Assignment"
@@ -331,17 +350,17 @@ export default function Homework() {
                   />
                 </div>
               </div>
-              <div className="flex items-center gap-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-                <input 
-                  type="checkbox" 
-                  id="useQuestionBank" 
-                  checked={useQuestionBank}
-                  onChange={(e) => setUseQuestionBank(e.target.checked)}
-                  className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 border-gray-300"
-                />
-                <label htmlFor="useQuestionBank" className="text-sm font-semibold text-slate-700">
-                  Populate with 20 Statistics Questions from Question Bank
-                </label>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <label className="block text-sm font-bold text-slate-700 mb-2">Question Bank</label>
+                <select
+                  value={questionSet}
+                  onChange={(e) => setQuestionSet(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 ring-blue-50 outline-none transition-all bg-white"
+                >
+                  <option value="statistics">20 Statistics Questions (Multiple Choice)</option>
+                  <option value="inference">10 Population Inference Questions (Short Answer)</option>
+                  <option value="none">Empty Assignment</option>
+                </select>
               </div>
               <div className="flex gap-3 pt-4">
                 <button 
@@ -435,13 +454,13 @@ function ViewSubmissionsModal({ homework, onClose }: { homework: Homework, onClo
 function TakeHomework({ homework, onCancel }: { homework: Homework, onCancel: () => void }) {
   const { user, profile } = useAuth();
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [answers, setAnswers] = useState<number[]>([]);
+  const [selectedAnswer, setSelectedAnswer] = useState<number | string | null>(null);
+  const [answers, setAnswers] = useState<(number | string)[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleNext = async () => {
-    if (selectedAnswer === null) return;
+    if (selectedAnswer === null || selectedAnswer === '') return;
     
     const newAnswers = [...answers, selectedAnswer];
     setAnswers(newAnswers);
@@ -455,9 +474,16 @@ function TakeHomework({ homework, onCancel }: { homework: Homework, onCancel: ()
       try {
         let score = 0;
         homework.questions.forEach((q, idx) => {
-          if (newAnswers[idx] === q.correctAnswer) {
-            score += 1;
+          let isCorrect = false;
+          if (q.type === 'short-answer') {
+            const studentAns = String(newAnswers[idx]).trim().toLowerCase();
+            const correctAns = String(q.correctAnswer).trim().toLowerCase();
+            isCorrect = studentAns === correctAns;
+          } else {
+            isCorrect = newAnswers[idx] === q.correctAnswer;
           }
+
+          if (isCorrect) score += 1;
         });
 
         await setDoc(doc(db, `homeworks/${homework.id}/submissions/${user?.uid}`), {
@@ -507,30 +533,146 @@ function TakeHomework({ homework, onCancel }: { homework: Homework, onCancel: ()
         <div className="bg-white p-8 rounded-3xl shadow-lg border border-slate-200">
           <h2 className="text-xl font-bold text-slate-900 mb-8">{q.question}</h2>
           <div className="space-y-3 mb-10">
-            {q.options.map((option, idx) => (
-              <button
-                key={idx}
-                onClick={() => setSelectedAnswer(idx)}
-                className={`w-full text-left p-5 rounded-2xl border-2 transition-all font-medium ${
-                  selectedAnswer === idx 
-                    ? 'border-blue-600 bg-blue-50 text-blue-700' 
-                    : 'border-slate-100 hover:border-slate-200 text-slate-600'
-                }`}
-              >
-                {option}
-              </button>
-            ))}
+            {q.type === 'short-answer' ? (
+              <input
+                type="text"
+                autoFocus
+                value={(selectedAnswer as string) || ''}
+                onChange={(e) => setSelectedAnswer(e.target.value)}
+                placeholder="Type your answer here..."
+                className="w-full px-6 py-4 rounded-xl border-2 border-slate-200 focus:border-blue-500 focus:ring-4 ring-blue-50 outline-none transition-all font-medium text-lg text-slate-900"
+              />
+            ) : (
+              q.options?.map((option, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setSelectedAnswer(idx)}
+                  className={`w-full text-left p-5 rounded-2xl border-2 transition-all font-medium ${
+                    selectedAnswer === idx 
+                      ? 'border-blue-600 bg-blue-50 text-blue-700' 
+                      : 'border-slate-100 hover:border-slate-200 text-slate-600'
+                  }`}
+                >
+                  {option}
+                </button>
+              ))
+            )}
           </div>
           <div className="flex items-center justify-between">
             <button onClick={onCancel} className="text-slate-400 font-bold hover:text-slate-600 transition-colors">Quit</button>
             <button 
               onClick={handleNext}
-              disabled={selectedAnswer === null || isSubmitting}
+              disabled={selectedAnswer === null || selectedAnswer === '' || isSubmitting}
               className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50"
             >
               {isSubmitting ? 'Submitting...' : currentQuestion === homework.questions.length - 1 ? 'Finish Submission' : 'Next Question'}
             </button>
           </div>
+        </div>
+      </div>
+    </ChapterLayout>
+  );
+}
+
+function EditHomework({ homework, onCancel }: { homework: Homework, onCancel: () => void }) {
+  const [questions, setQuestions] = useState(homework.questions || []);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleQuestionChange = (index: number, field: string, value: any) => {
+    const newQs = [...questions];
+    newQs[index] = { ...newQs[index], [field]: value };
+    setQuestions(newQs);
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await updateDoc(doc(db, 'homeworks', homework.id), { questions });
+      onCancel();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `homeworks/${homework.id}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <ChapterLayout title="Edit Assignment" subtitle={homework.title}>
+      <div className="max-w-4xl mx-auto pb-20">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900">Questions ({questions.length})</h2>
+            <p className="text-slate-500 mt-1">Review and edit questions for this assignment.</p>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={onCancel} className="px-6 py-3 font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-all">Cancel</button>
+            <button onClick={handleSave} disabled={isSaving} className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50">
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {questions.map((q, idx) => (
+            <div key={idx} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+              <div className="mb-4">
+                <label className="block text-sm font-bold text-slate-700 mb-2">Question {idx + 1}</label>
+                <textarea
+                  value={q.question}
+                  onChange={(e) => handleQuestionChange(idx, 'question', e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 ring-blue-50 outline-none transition-all resize-y min-h-[100px]"
+                />
+              </div>
+
+              {q.type === 'short-answer' ? (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Acceptable Answer</label>
+                  <input
+                    type="text"
+                    value={q.correctAnswer as string}
+                    onChange={(e) => handleQuestionChange(idx, 'correctAnswer', e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 ring-emerald-50 focus:border-emerald-300 outline-none transition-all bg-emerald-50/30 text-emerald-900 font-bold"
+                  />
+                  <p className="text-xs text-slate-500 mt-2">Students must type exactly this matching answer (case-insensitive).</p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center justify-between">
+                    <span>Options</span>
+                    <span className="text-xs font-normal text-slate-500">Select the radio button to mark correct answer</span>
+                  </label>
+                  <div className="space-y-3">
+                    {q.options?.map((opt, optIdx) => (
+                      <div key={optIdx} className="flex items-center gap-3">
+                         <input
+                           type="radio"
+                           name={`q-${idx}-correct`}
+                           checked={q.correctAnswer === optIdx}
+                           onChange={() => handleQuestionChange(idx, 'correctAnswer', optIdx)}
+                           className="w-5 h-5 text-emerald-600 focus:ring-emerald-500 border-gray-300 cursor-pointer"
+                           title="Mark as correct answer"
+                         />
+                         <input
+                           type="text"
+                           value={opt}
+                           onChange={(e) => {
+                             const newOpts = [...(q.options || [])];
+                             newOpts[optIdx] = e.target.value;
+                             handleQuestionChange(idx, 'options', newOpts);
+                           }}
+                           className={`flex-1 px-4 py-3 rounded-xl border outline-none transition-all ${
+                             q.correctAnswer === optIdx 
+                              ? 'border-emerald-300 bg-emerald-50/50 font-medium' 
+                              : 'border-slate-200 focus:ring-4 ring-blue-50'
+                           }`}
+                         />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </ChapterLayout>
